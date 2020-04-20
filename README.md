@@ -6,6 +6,7 @@
 #### Interesting links
 * https://www.youtube.com/watch?v=uD_q4Rm4i2Q
 * Libraries from Stanford on NLP and Sentiment analysis:
+
 ** https://stanfordnlp.github.io/CoreNLP/tutorials.html
 ** https://github.com/P7h/Spark-MLlib-Twitter-Sentiment-Analysis/blob/master/src/main/scala/org/p7h/spark/sentiment/corenlp/CoreNLPSentimentAnalyzer.scala
 
