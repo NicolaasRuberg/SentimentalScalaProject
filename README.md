@@ -12,3 +12,6 @@
 	https://github.com/P7h/Spark-MLlib-Twitter-Sentiment-Analysis/blob/master/src/main/scala/org/p7h/spark/sentiment/corenlp/CoreNLPSentimentAnalyzer.scala
 
 * Download IntelliJ - IDEA https://www.jetbrains.com/idea/download
+
+## Twitter pass
+SCALAproject2020
