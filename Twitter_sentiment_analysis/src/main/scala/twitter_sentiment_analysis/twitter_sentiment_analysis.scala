@@ -38,19 +38,34 @@ object twitter_sentiment_analysis {
       .setOAuthConsumerKey("Blow2DwwbT4MAujtmFZuXKCOQ")
       .setOAuthConsumerSecret("hfJIsPNeaBZ3qsfXoAzFEqT5Y1yxqq75gnSQJ4XjECE3m3DxyO")
       .setOAuthAccessToken("1255521908436750341-vtkCY6FxxPvyD6AAwsopkfM6eDXRHK")
-      .setOAuthAccessTokenSecret("mHHuR17dG7HWaQBDyQ0yl4vZ8l8nBovmU1oe37xyDFVJs").build()
+      .setOAuthAccessTokenSecret("mHHuR17dG7HWaQBDyQ0yl4vZ8l8nBovmU1oe37xyDFVJs")
+      .setTweetModeExtended(true).build()
 
     val twitter_auth = new TwitterFactory(cb)
     val a = new OAuthAuthorization(cb)
     val atwitter: Option[twitter4j.auth.Authorization] = Some(twitter_auth.getInstance(a).getAuthorization())
 
     val tweets = TwitterUtils.createStream(ssc, atwitter, filters, StorageLevel.MEMORY_AND_DISK_SER_2)
+
     // Now extract the text of each status update into RDD's using map()
-    val statuses = tweets.map(status => status.getText())
 
-    // Print out the first ten
-    statuses.print()
+    val englishTweets = tweets.filter(_.getLang() == "en")
 
+    val status = tweets.map(status => status.getText)
+    englishTweets.foreachRDD(rdd => {
+      rdd.map(status => {
+        //println(s)
+        var tweet_current = "";
+        if(status.getRetweetedStatus != null)
+          tweet_current = status.getRetweetedStatus().getText
+        else
+          tweet_current = status.getText
+
+        println("")
+        tweet_current
+
+      }).foreach(println)
+    })
 
     val stream = TwitterUtils.createStream(ssc, atwitter, filters_hashtag, StorageLevel.MEMORY_AND_DISK_SER_2)
     val hashTags = stream.flatMap(status => status.getText.split(" ").filter(_.startsWith("#")))
@@ -75,7 +90,7 @@ object twitter_sentiment_analysis {
     })
 
 
-    //    tweets.saveAsTextFiles("tweets", "json")
+    tweets.saveAsTextFiles("tweets", "json")
 
     // Kick it all off
     ssc.start()
