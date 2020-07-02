@@ -1,30 +1,28 @@
 package twitter_sentiment_analysis
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.twitter._
 import twitter4j.TwitterFactory
 import twitter4j.auth.OAuthAuthorization
 import twitter4j.conf.ConfigurationBuilder
+import Utils._
+import org.apache.spark.streaming.dstream.DStream
+
 
 object twitter_sentiment_analysis {
   def main(args: Array[String]): Unit = {
-    var conf2 = new SparkConf()
-    conf2.setMaster("local")
-    conf2.setAppName("Second Application")
 
-    //    val sc2 = new SparkContext(conf2)
-    //
-    //    // Create a RDD
-    //
-    //    val rdd2 = sc2.makeRDD(Array(1, 2, 3, 4, 5, 6, 7))
-    //    rdd2.collect().foreach(println)
-    // Configure Twitter credentials
+    val sparkConfiguration = new SparkConf().
+      setAppName("Twitter_sentiment_analysis").
+      setMaster(sys.env.get("spark.master").getOrElse("local[*]"))
 
     // Set up a Spark streaming context named "PrintTweets" that runs locally using
     // all CPU cores and one-second batches of data
-    val ssc = new StreamingContext("local[*]", "PrintTweets", Seconds(5))
+
+    val sparkContext = new SparkContext(sparkConfiguration)
+    val ssc = new StreamingContext(sparkContext, Seconds(5))
 
     // Get rid of log spam (should be called after the context is set up)
     setupLogging()
@@ -33,75 +31,87 @@ object twitter_sentiment_analysis {
     val filters: Seq[String] = Seq("TRUMP")
     val filters_hashtag = args.takeRight(args.length - 4)
 
-
-    val cb = new ConfigurationBuilder()
-      .setOAuthConsumerKey("Blow2DwwbT4MAujtmFZuXKCOQ")
-      .setOAuthConsumerSecret("hfJIsPNeaBZ3qsfXoAzFEqT5Y1yxqq75gnSQJ4XjECE3m3DxyO")
-      .setOAuthAccessToken("1255521908436750341-vtkCY6FxxPvyD6AAwsopkfM6eDXRHK")
-      .setOAuthAccessTokenSecret("mHHuR17dG7HWaQBDyQ0yl4vZ8l8nBovmU1oe37xyDFVJs")
-      .setTweetModeExtended(true).build()
-
-    val twitter_auth = new TwitterFactory(cb)
-    val a = new OAuthAuthorization(cb)
-    val atwitter: Option[twitter4j.auth.Authorization] = Some(twitter_auth.getInstance(a).getAuthorization())
+    val atwitter: Some[OAuthAuthorization] = OAuthUtils.bootstrapTwitterOAuth()
 
     val tweets = TwitterUtils.createStream(ssc, atwitter, filters, StorageLevel.MEMORY_AND_DISK_SER_2)
 
+    val uselessWords_en  = sparkContext.broadcast(load("/stop-words-en.dat"))
+    val positiveWords_en = sparkContext.broadcast(load("/pos-words-en.dat"))
+    val negativeWords_en = sparkContext.broadcast(load("/neg-words-en.dat"))
+
+    val uselessWords_it  = sparkContext.broadcast(load("/stop-words-it.dat"))
+    val positiveWords_it = sparkContext.broadcast(load("/pos-words-it.dat"))
+    val negativeWords_it = sparkContext.broadcast(load("/neg-words-it.dat"))
+
     // Now extract the text of each status update into RDD's using map()
-
     val englishTweets = tweets.filter(_.getLang() == "en")
+    val italianTweets = tweets.filter(_.getLang() == "it")
 
-    val status = tweets.map(status => status.getText)
-    englishTweets.foreachRDD(rdd => {
-      rdd.map(status => {
-        //println(s)
-        var tweet_current = "";
-        if(status.getRetweetedStatus != null)
-          tweet_current = status.getRetweetedStatus().getText
-        else
-          tweet_current = status.getText
+    val textAndSentences: DStream[(TweetText, Sentence)] =
+      englishTweets.
+        map(_.getText).
+        map(tweetText => (tweetText, wordsOf(tweetText)))
 
-        println("")
-        tweet_current
+    // Apply several transformations that allow us to keep just meaningful sentences
+    val textAndMeaningfulSentences: DStream[(TweetText, Sentence)] =
+      textAndSentences.
+        mapValues(toLowercase).
+        mapValues(keepActualWords).
+        mapValues(words => keepMeaningfulWords(words, uselessWords_en.value)).
+        filter { case (_, sentence) => sentence.length > 0 }
 
-      }).foreach(println)
-    })
+    // Compute the score of each sentence and keep only the non-neutral ones
+    val textAndNonNeutralScore: DStream[(TweetText, Int)] =
+      textAndMeaningfulSentences.
+        mapValues(sentence => computeScore(sentence, positiveWords_en.value, negativeWords_en.value)).
+        filter { case (_, score) => score != 0 }
 
-    val stream = TwitterUtils.createStream(ssc, atwitter, filters_hashtag, StorageLevel.MEMORY_AND_DISK_SER_2)
-    val hashTags = stream.flatMap(status => status.getText.split(" ").filter(_.startsWith("#")))
+    // Let's check the Italian posts
+    val textAndSentences_it: DStream[(TweetText, Sentence)] =
+      italianTweets.
+        map(_.getText).
+        map(tweetText => (tweetText, wordsOf(tweetText)))
 
-    val topCounts60 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(60))
+    val textAndMeaningfulSentences_it: DStream[(TweetText, Sentence)] =
+      textAndSentences_it.
+        mapValues(toLowercase).
+        mapValues(keepActualWords).
+        mapValues(words => keepMeaningfulWords(words, uselessWords_it.value)).
+        filter { case (_, sentence) => sentence.length > 0 }
+
+    val textAndNonNeutralScore_it: DStream[(TweetText, Int)] =
+      textAndMeaningfulSentences_it.
+        mapValues(sentence => computeScore(sentence, positiveWords_en.value, negativeWords_en.value)).
+        filter { case (_, score) => score != 0 }
+
+
+    val topScore60 = textAndNonNeutralScore.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(160))
       .map { case (topic, count) => (count, topic) }
       .transform(_.sortByKey(false))
 
-    val topCounts10 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(10))
-      .map { case (topic, count) => (count, topic) }
-      .transform(_.sortByKey(false))
-
-    topCounts60.foreachRDD(rdd => {
+    topScore60.foreachRDD(rdd => {
       val topList = rdd.take(10)
-      println("\nPopular topics in last 60 seconds (%s total):".format(rdd.count()))
-      topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count)) }
-    })
-    topCounts10.foreachRDD(rdd => {
-      val topList = rdd.take(10)
-      println("\nPopular topics in last 10 seconds (%s total):".format(rdd.count()))
-      topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count)) }
+      println("\nEnglish in last 60 seconds (%s total):".format(rdd.count()))
+      topList.foreach { case (count, (topic,score)) => println("Score: %s ( %s tweets) topic: %s".format(score, count, topic)) }
     })
 
+//    val topScore60_it = textAndNonNeutralScore_it.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(160))
+//      .map { case (topic, count) => (count, topic) }
+//      .transform(_.sortByKey(false))
+//
+//    topScore60_it.foreachRDD(rdd => {
+//      val topList = rdd.take(10)
+//      println("\nItalian sentiment in last 60 seconds (%s total):".format(rdd.count()))
+////      topList.foreach { case (count, (tag,score)) => println("Score: %s ( %s tweets - %s)".format(score, count,tag)) }
+// //     topList.foreach { case (count, tag ) => println("Tweet: %s ( %s tweets)".format(tag, count)) }
+//    })
 
-    tweets.saveAsTextFiles("tweets", "json")
+
+    // tweets.saveAsTextFiles("tweets", "json")
 
     // Kick it all off
     ssc.start()
     ssc.awaitTermination()
-  }
-
-  /** Makes sure only ERROR messages get logged to avoid log spam. */
-  def setupLogging() = {
-    import org.apache.log4j.{Level, Logger}
-    val rootLogger = Logger.getRootLogger()
-    rootLogger.setLevel(Level.ERROR)
   }
 
 }
