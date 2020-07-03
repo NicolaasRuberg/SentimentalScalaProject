@@ -64,6 +64,7 @@ object Utils {
   // Some type aliases to give a little bit of context
   type Tweet = Status
   type TweetText = String
+  type Hashtag = String
   type Sentence = Seq[String]
 
   private def format(n: Int): String = f"$n%2d"
@@ -93,6 +94,9 @@ object Utils {
   def wordsOf(tweet: TweetText): Sentence =
     tweet.split(" ")
 
+  def hashtagOf(tweet: TweetText): Sentence =
+    tweet.split(" ").filter(_.startsWith("#"))
+
   def toLowercase(sentence: Sentence): Sentence =
     sentence.map(_.toLowerCase)
 
@@ -112,6 +116,19 @@ object Utils {
     if (positiveWords.contains(word)) 1
     else if (negativeWords.contains(word)) -1
     else 0
+
+  def retrieveHashtag (list_hashtags: Sentence) : String = {
+    val counts: Map[String, Int] = list_hashtags.foldLeft(Map.empty[String, Int]) { (map, string) =>
+      val count: Int = map.getOrElse(string, 0) //get the current count of the string
+      map.updated(string, count + 1) //update the map by incrementing string's counter
+    }
+    val sortedFrequency: Vector[(String, Int)] = counts.toVector.sortWith(_._2 > _._2)
+//      println(s"sorted frequency${sortedFrequency}")
+    if (sortedFrequency.length == 0)
+      return(" ")
+    else
+      sortedFrequency(0)._1
+  }
 
   /** Makes sure only ERROR messages get logged to avoid log spam. */
   def setupLogging() = {
@@ -138,6 +155,10 @@ object Utils {
       .option("codec", classOf[GzipCodec].getCanonicalName)
       .mode(SaveMode.Append)
       .save(tweetsRawPath)
+  }
+
+  def replaceNewLines(tweetText: String): String = {
+    tweetText.replaceAll("\n", "")
   }
 
 
