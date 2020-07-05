@@ -12,6 +12,10 @@ import twitter4j.auth.OAuthAuthorization
 import twitter4j.conf.ConfigurationBuilder
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{SQLContext, SaveMode}
+import org.apache.spark.streaming.dstream.DStream
+import org.apache.spark.streaming.dstream.ReceiverInputDStream
+
+
 
 /**
  * Lazily instantiated singleton instance of SQLContext.
@@ -72,9 +76,9 @@ object Utils {
   private def wrapScore(s: String): String = s"[ $s ] "
 
   private def makeReadable(n: Int): String =
-    if (n > 0)      s"${AnsiColor.GREEN + format(n) + AnsiColor.RESET}"
-    else if (n < 0) s"${AnsiColor.RED   + format(n) + AnsiColor.RESET}"
-    else            s"${format(n)}"
+    if (n > 0) s"${AnsiColor.GREEN + format(n) + AnsiColor.RESET}"
+    else if (n < 0) s"${AnsiColor.RED + format(n) + AnsiColor.RESET}"
+    else s"${format(n)}"
 
   private def makeReadable(s: String): String =
     s.takeWhile(_ != '\n').take(144) + "..."
@@ -117,15 +121,14 @@ object Utils {
     else if (negativeWords.contains(word)) -1
     else 0
 
-  def retrieveHashtag (list_hashtags: Sentence) : String = {
+  def retrieveHashtag(list_hashtags: Sentence): String = {
     val counts: Map[String, Int] = list_hashtags.foldLeft(Map.empty[String, Int]) { (map, string) =>
       val count: Int = map.getOrElse(string, 0) //get the current count of the string
       map.updated(string, count + 1) //update the map by incrementing string's counter
     }
     val sortedFrequency: Vector[(String, Int)] = counts.toVector.sortWith(_._2 > _._2)
-//      println(s"sorted frequency${sortedFrequency}")
     if (sortedFrequency.length == 0)
-      return(" ")
+      return (" ")
     else
       sortedFrequency(0)._1
   }
