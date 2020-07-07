@@ -89,7 +89,8 @@ object Utils {
     }
 
   def load(resourcePath: String): Set[String] = {
-    val source = Source.fromInputStream(getClass.getResourceAsStream(resourcePath))
+//    val source = Source.fromInputStream(getClass.getResourceAsStream(resourcePath))
+    val source = Source.fromFile(resourcePath)
     val words = source.getLines.toSet
     source.close()
     words
@@ -113,6 +114,18 @@ object Utils {
   def keepMeaningfulWords(sentence: Sentence, uselessWords: Set[String]): Sentence =
     sentence.filterNot(word => uselessWords.contains(word))
 
+  def keepMeaningfulWords2(sentence: Sentence, uselessWords: RDD[String]): Sentence = {
+    sentence.filterNot(word => uselessWords.toString() == word)
+  }
+  def computeScore2(words: Sentence, positiveWords: RDD[String], negativeWords: RDD[String]): Int =
+    words.map(word => computeWordScore(word, positiveWords.collect().toSet, negativeWords.collect().toSet)).sum
+
+  def getMeaninfulSenteces(tweet: Sentence,uselessWords: Set[String]):Sentence = {
+    val lowTweet = toLowercase(tweet)
+    val actualWords = keepActualWords(lowTweet)
+    keepMeaningfulWords(actualWords, uselessWords)
+  }
+
   def computeScore(words: Sentence, positiveWords: Set[String], negativeWords: Set[String]): Int =
     words.map(word => computeWordScore(word, positiveWords, negativeWords)).sum
 
@@ -126,6 +139,7 @@ object Utils {
       val count: Int = map.getOrElse(string, 0) //get the current count of the string
       map.updated(string, count + 1) //update the map by incrementing string's counter
     }
+
     val sortedFrequency: Vector[(String, Int)] = counts.toVector.sortWith(_._2 > _._2)
     if (sortedFrequency.length == 0)
       return (" ")
@@ -133,12 +147,6 @@ object Utils {
       sortedFrequency(0)._1
   }
 
-  /** Makes sure only ERROR messages get logged to avoid log spam. */
-  def setupLogging() = {
-    import org.apache.log4j.{Level, Logger}
-    val rootLogger = Logger.getRootLogger()
-    rootLogger.setLevel(Level.ERROR)
-  }
 
   val jacksonObjectMapper: ObjectMapper = new ObjectMapper()
   /**
