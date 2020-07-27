@@ -13,5 +13,5 @@
 
 * Download IntelliJ - IDEA https://www.jetbrains.com/idea/download
 
-## Twitter pass
+## Twitter acc pass
 SCALAproject2020
