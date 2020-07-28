@@ -26,7 +26,7 @@ object twitter_sentiment_analysis {
     // Check if we're running on the AWS or locally, set the dictionaries path accordingly
     var dictPath = ""
     if (! sys.env.get("HOME").toString.contains("bia" ))
-      dictPath = "s3://unibo-scala-twitter"
+      dictPath = "s3://unibo-scala-twitter/"
     else {
        dictPath = "./"
       sparkConfiguration.setMaster(sys.env.get("spark.master").getOrElse("local[*]"))
@@ -116,40 +116,71 @@ object twitter_sentiment_analysis {
     val topScore60 = textAndNonNeutralScoreHastag.map((_, 1)).reduceByKeyAndWindow(_ + _, Minutes(timeWindow))
       .map { case (topic, count) => (count, topic) }
       .transform(_.sortByKey(false))
+    //  Prepare english file for out put
+    val myFile = dictPath+"out/" + "output-en"
+    val sdf = new SimpleDateFormat("yy-MM-dd hh:mm:ss")
 
     topScore60.foreachRDD(rdd => {
-      val date = new Date
-      val sdf = new SimpleDateFormat("yy-MM-DD hh:mm")
-      println("\nTime: %s, Tweet Number: %s, Score: %s.".format(sdf.format(date).toString, rdd.count(),rdd.reduce(
-        (a,b) => (0,((a._2._1 + b._2._1),"")))._2._1))
+      if (rdd.take(1).length != 0)
+        println("####en; %s; %s;%s".format(sdf.format(new Date), rdd.count(),rdd.reduce(
+          (a,b) => (0,((a._2._1 + b._2._1),"")))._2._1))
     })
 
-    topScore60.foreachRDD(rdd => {
-      val topList = rdd.take(100)
-      println("\nEnglish in last %s min. (%s total):".format(timeWindow, rdd.count()))
-      topList.foreach { case (count, (score,hashtag) ) => println("Score: %s ( %s tweets) - Hashtag: %s".format(score, count,hashtag))}
-    })
+//    topScore60.map({ case (count,(score,hashtag: Hashtag))  =>
+//      (sdf.format(new Date),(count + count),(score + score))}).
+//      print()
+////      saveAsTextFiles(myFile)
 
+//    topScore60.foreachRDD(rdd => {
+//      val topList = rdd.take(100)
+//      println("\nEnglish in last %s min. (%s total):".format(timeWindow, rdd.count()))
+//      topList.foreach { case (count, (score,hashtag) ) => println("Score: %s ( %s tweets) - Hashtag: %s".format(score, count,hashtag))}
+//    })
 
     val topScore60_it = textAndNonNeutralScoreHastag_it.map((_, 1)).reduceByKeyAndWindow(_ + _, Minutes(timeWindow))
       .map { case (topic, count) => (count, topic) }
       .transform(_.sortByKey(false))
 
     topScore60_it.foreachRDD(rdd => {
-      val topList = rdd.take(10)
-      println("\nItalian sentiment in last %s min. (%s total):".format(timeWindow,rdd.count()))
-      topList.foreach { case (count, (score,hashtag) ) => println("Score: %s ( %s tweets) - Hashtag: %s".format(score, count,hashtag))}
+      if (rdd.take(1).length != 0)
+        println("####it; %s; %s;%s".format(sdf.format(new Date), rdd.count(),rdd.reduce(
+          (a,b) => (0,((a._2._1 + b._2._1),"")))._2._1))
     })
+
+//    val itFile = dictPath+"out/" + "output-it"
+//    topScore60_it.map({ case (count,(score,hashtag: Hashtag))  =>
+//      (sdf.format(new Date),(count + count),(score + score))}).
+//      print()
+////      saveAsTextFiles(itFile)
+
+//    topScore60_it.foreachRDD(rdd => {
+//      val topList = rdd.take(10)
+//      println("\nItalian sentiment in last %s min. (%s total):".format(timeWindow,rdd.count()))
+//      topList.foreach { case (count, (score,hashtag) ) => println("Score: %s ( %s tweets) - Hashtag: %s".format(score, count,hashtag))}
+//    })
 
     val topScore60_br = textAndNonNeutralScoreHastag_br.map((_, 1)).reduceByKeyAndWindow(_ + _, Minutes(timeWindow))
       .map { case (topic, count) => (count, topic) }
       .transform(_.sortByKey(false))
 
     topScore60_br.foreachRDD(rdd => {
-      val topList = rdd.take(10)
-      println("\nBrazilian sentiment in last %s min. (%s total):".format(timeWindow,rdd.count()))
-      topList.foreach { case (count, (score,hashtag) ) => println("Score: %s ( %s tweets) - Hashtag: %s".format(score, count,hashtag))}
+      if (rdd.take(1).length != 0)
+        println("####br; %s; %s;%s".format(sdf.format(new Date), rdd.count(),rdd.reduce(
+        (a,b) => (0,((a._2._1 + b._2._1),"")))._2._1))
     })
+
+//    topScore60_br.foreachRDD(rdd => {
+//      val topList = rdd.take(10)
+//      println("\nBrazilian sentiment in last %s min. (%s total):".format(timeWindow,rdd.count()))
+//      topList.foreach { case (count, (score,hashtag) ) => println("Score: %s ( %s tweets) - Hashtag: %s".format(score, count,hashtag))}
+//    })
+
+//    val brFile = dictPath+"out/" + "output-br"
+//    topScore60_br.map({ case (count,(score,hashtag: Hashtag))  =>
+//      (sdf.format(new Date),(count + count),(score + score))}).
+//      print()
+////      saveAsTextFiles(brFile)
+
     // tweets.saveAsTextFiles("tweets", "json")
     // Kick it all off
     ssc.start()
