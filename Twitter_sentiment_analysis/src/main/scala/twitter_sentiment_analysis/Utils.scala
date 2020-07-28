@@ -38,10 +38,10 @@ object SQLContextSingleton {
 }
 
 object PropertiesLoader {
-  val consumerKey = "Blow2DwwbT4MAujtmFZuXKCOQ"
-  val consumerSecret = "hfJIsPNeaBZ3qsfXoAzFEqT5Y1yxqq75gnSQJ4XjECE3m3DxyO"
-  val accessToken = "1255521908436750341-vtkCY6FxxPvyD6AAwsopkfM6eDXRHK"
-  val accessTokenSecret = "mHHuR17dG7HWaQBDyQ0yl4vZ8l8nBovmU1oe37xyDFVJs"
+  val consumerKey = "put your Twitter consumer key"
+  val consumerSecret = "put your Twitter consumer password"
+  val accessToken = "put your Twitter token key"
+  val accessTokenSecret = "put your Twitter token password"
 
 }
 
